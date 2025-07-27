@@ -1,28 +1,52 @@
-.vscode
+# Environment
 .env
-.cursorrules
+.env.local
+.env.production
 
-
-# Ignore all dotfiles by default
-.*
-
-# …except the ones we need
-!.gitignore
-!.gitattributes
-!.dockerignore
-!.env.example
-!.python-version
-
-
+# Python
 __pycache__/
 *.py[cod]
-.mypy_cache/
-.pytest_cache/
-.ruff_cache/
-
-# Poetry / uv / pip
-.cache/pip/
-.cache/uv/
-pip-wheel-metadata/
+*$py.class
+*.so
+.Python
 build/
-=
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Data and embeddings (too large for git)
+data/processed/
+data/embeddings/
+data/raw/meta_Amazon_Fashion.jsonl
+*.parquet
+*.npy
+*.npz
+
+# Logs
+logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# UV
+.venv/
+uv.lock

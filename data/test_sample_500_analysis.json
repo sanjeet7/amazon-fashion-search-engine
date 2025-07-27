@@ -1,0 +1,21 @@
+{
+  "total_products": 500,
+  "quality_distribution": {
+    "standard": 225,
+    "premium": 175,
+    "basic": 100
+  },
+  "brand_diversity": 499,
+  "category_diversity": 7,
+  "business_signal_coverage": {
+    "has_rating": 500,
+    "has_price": 500,
+    "has_brand": 500,
+    "rating_coverage_pct": 100.0,
+    "price_coverage_pct": 100.0
+  },
+  "quality_metrics": {
+    "avg_quality_score": 7.45,
+    "avg_completeness_score": 1.892
+  }
+}

@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  prototype:
+    build: .
+    volumes:
+      # Mount your local data directory
+      - ../data:/app/data
+      # Mount current directory for live script editing
+      - .:/app/prototype
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PYTHONUNBUFFERED=1
+    working_dir: /app/prototype
+    stdin_open: true
+    tty: true 
