@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  search-api-dev:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/search-api.Dockerfile
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - LOG_LEVEL=DEBUG
+      - DEVELOPMENT_MODE=true
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../../data:/app/data
+      - ../../logs:/app/logs
+      - ../../shared:/app/shared
+      - ../../services/search-api:/app/services/search-api
+    command: ["python", "services/search-api/main.py", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    restart: unless-stopped
+
+networks:
+  default:
+    name: fashion-search-dev
