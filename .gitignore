@@ -24,3 +24,8 @@ __pycache__/
 .cache/uv/
 pip-wheel-metadata/
 build/
+# Large data files
+data/raw/meta_Amazon_Fashion.jsonl
+data/processed/
+data/embeddings/
+*.zip
