@@ -1,0 +1,26 @@
+.vscode
+.env
+.cursorrules
+
+
+# Ignore all dotfiles by default
+.*
+
+# …except the ones we need
+!.gitignore
+!.dockerignore
+!.env.example
+!.python-version
+
+
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Poetry / uv / pip
+.cache/pip/
+.cache/uv/
+pip-wheel-metadata/
+build/

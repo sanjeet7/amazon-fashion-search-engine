@@ -1,0 +1,82 @@
+[project]
+name = "amazon-fashion-search-engine"
+version = "0.1.0"
+description = "Semantic fashion recommendation microservice using OpenAI embeddings"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Sanjeet Dutta", email = "sdutta2198@gmail.com" },
+]
+keywords = ["fashion", "search", "recommendations", "openai", "embeddings"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    # Core API framework
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    # Data processing
+    "pandas>=2.2.0",
+    "pyarrow>=14.0.0", # For parquet support
+    "numpy==1.26.4",
+    # OpenAI integration
+    "openai>=1.3.0",
+    "tiktoken>=0.5.0", # Token counting
+    # Vector search
+    "faiss-cpu>=1.7.4",
+    # HTTP requests (used in setup scripts)
+    "requests>=2.31.0",
+    # Utilities
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.4.0",
+    "httpx>=0.25.0", # For async HTTP calls
+    "rich>=13.0.0", # For beautiful CLI output
+    "typer>=0.9.0", # For CLI interface
+    # Data validation and integrity
+    "psutil>=5.9.0", # For system resource monitoring
+    # Development/Data exploration
+    "jupyter>=1.0.0",
+    "matplotlib==3.9.2",
+    "seaborn==0.13.2",
+    "scipy>=1.11.0",
+    "ipykernel>=6.30.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.4.0",
+]
+
+[project.scripts]
+fashion-search = "src.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
