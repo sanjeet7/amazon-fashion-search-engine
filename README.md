@@ -52,8 +52,10 @@ export OPENAI_API_KEY="your_openai_api_key_here"
 # 3. Run comprehensive setup
 ./scripts/setup-dev.sh
 
-# 4. Download and place Amazon Fashion dataset
-# Place at: data/raw/meta_Amazon_Fashion.jsonl
+# 4. Download and extract Amazon Fashion dataset
+# Download: data.zip (219MB compressed)
+# Extract to: data/raw/meta_Amazon_Fashion.jsonl
+# Note: Large data files are excluded from Git history
 
 # 5. Initialize data pipeline (one-time, 3-5 minutes)
 ./scripts/start-data-pipeline.sh
@@ -87,6 +89,36 @@ Try these natural language searches:
 - *"elegant wedding guest outfit for outdoor ceremony"*
 - *"professional work attire for investment banking"*
 - *"vintage leather jacket brown with multiple pockets"*
+
+## 📁 **Data Management**
+
+### **Dataset Access**
+The Amazon Fashion dataset (1.3GB uncompressed) is excluded from Git history to keep the repository lightweight. 
+
+**To get the dataset:**
+1. Download `data.zip` (219MB compressed) from the repository releases
+2. Extract: `unzip data.zip`
+3. Verify: `ls -lh data/raw/meta_Amazon_Fashion.jsonl` (should be ~1.3GB)
+
+**Dataset Structure:**
+```
+data/
+├── raw/
+│   └── meta_Amazon_Fashion.jsonl    # Original dataset (1.3GB)
+├── processed/
+│   ├── processed_sample.parquet     # Processed data (excluded from Git)
+│   └── embeddings_cache/            # Cached embeddings (excluded from Git)
+├── embeddings/                      # Generated embeddings (excluded from Git)
+└── sample/
+    ├── sample_products.json         # Small sample for testing
+    └── sample_products.jsonl        # Small sample for testing
+```
+
+### **Git Ignored Files**
+- `data/raw/meta_Amazon_Fashion.jsonl` - Large original dataset
+- `data/processed/` - Processed data files
+- `data/embeddings/` - Generated embeddings
+- `*.zip` - Compressed files
 
 ## 🏗️ **Microservices Architecture**
 
