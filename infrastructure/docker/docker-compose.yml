@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  data-pipeline:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/data-pipeline.Dockerfile
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - USE_SAMPLE_DATA=true
+      - LOG_LEVEL=INFO
+    volumes:
+      - ../../data:/app/data
+      - ../../logs:/app/logs
+    profiles:
+      - init
+    command: ["python", "services/data-pipeline/main.py", "--sample"]
+
+  search-api:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/search-api.Dockerfile
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - LOG_LEVEL=INFO
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../../data:/app/data
+      - ../../logs:/app/logs
+    depends_on:
+      - data-pipeline
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+networks:
+  default:
+    name: fashion-search
+
+volumes:
+  data:
+  logs:
