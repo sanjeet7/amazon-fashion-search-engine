@@ -8,6 +8,7 @@
 
 # …except the ones we need
 !.gitignore
+!.gitattributes
 !.dockerignore
 !.env.example
 !.python-version
@@ -24,8 +25,4 @@ __pycache__/
 .cache/uv/
 pip-wheel-metadata/
 build/
-# Large data files
-data/raw/meta_Amazon_Fashion.jsonl
-data/processed/
-data/embeddings/
-*.zip
+=
