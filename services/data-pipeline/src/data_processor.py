@@ -122,6 +122,15 @@ class DataProcessor:
                     for key, value in cleaned_product.quality_metadata.items():
                         product_dict[f"quality_{key}"] = value
                 
+                # Convert complex objects to strings for Parquet compatibility
+                # Since we're already flattening the metadata into individual columns,
+                # we can serialize the original metadata as JSON strings
+                if product_dict.get('filter_metadata'):
+                    product_dict['filter_metadata'] = json.dumps(product_dict['filter_metadata'])
+                
+                if product_dict.get('quality_metadata'):
+                    product_dict['quality_metadata'] = json.dumps(product_dict['quality_metadata'])
+                
                 cleaned_products.append(product_dict)
                 embedding_texts.append(cleaned_product.text_for_embedding)
         
