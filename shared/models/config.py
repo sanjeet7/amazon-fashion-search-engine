@@ -1,74 +1,67 @@
-"""Configuration management for the Fashion Search Engine."""
+"""Configuration models for the fashion search system."""
 
 import os
-from pathlib import Path
-from typing import Optional
-
-from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-
-def find_project_root() -> Path:
-    """Find the project root directory by looking for pyproject.toml."""
-    current = Path(__file__).resolve()
-    for parent in current.parents:
-        if (parent / "pyproject.toml").exists():
-            return parent
-    # Fallback to current working directory
-    return Path.cwd()
+from typing import Optional, Literal
+from pydantic import Field
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables."""
+    """Application settings with environment variable support."""
     
-    model_config = SettingsConfigDict(
-        env_file=str(find_project_root() / ".env"),
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        extra="ignore"
-    )
-    
-    # OpenAI Configuration
-    openai_api_key: str = Field(..., description="OpenAI API key")
-    embedding_model: str = Field(default="text-embedding-3-small", description="OpenAI embedding model")
-    llm_model: str = Field(default="gpt-4.1-mini", description="LLM model for query processing")
-    
-    # Data Configuration (Stratified Sampling Strategy)
-    stratified_sample_size: int = Field(default=150000, description="Stratified sample size as per final_exploration.md")
-    data_batch_size: int = Field(default=100, description="Batch size for API calls")
-    
-    # API Configuration
+    # === API Configuration ===
     api_host: str = Field(default="0.0.0.0", description="API host")
     api_port: int = Field(default=8000, description="API port")
     api_workers: int = Field(default=1, description="Number of API workers")
     
-    # Development Settings
-    log_level: str = Field(default="INFO", description="Logging level")
-    development_mode: bool = Field(default=True, description="Development mode")
+    # === Data Processing Configuration ===
+    # Optimized for take-home assessment
+    stratified_sample_size: int = Field(default=50000, description="Sample size for stratified sampling")
+    embedding_batch_size: int = Field(default=1000, description="Batch size for embedding generation")
+    llm_concurrent_limit: int = Field(default=10, description="Maximum concurrent LLM requests")
+    sequential_processing: bool = Field(default=False, description="Use sequential processing to avoid rate limits")
     
-    # Paths (relative to project root)
-    raw_data_path: Path = Field(default=Path("data/raw/meta_Amazon_Fashion.jsonl"), description="Raw data file path")
-    processed_data_dir: Path = Field(default=Path("data/processed"), description="Processed data directory")
-    embeddings_dir: Path = Field(default=Path("data/embeddings"), description="Embeddings directory")
+    # === Model Configuration ===
+    embedding_model: str = Field(default="text-embedding-3-small", description="OpenAI embedding model")
+    llm_model: str = Field(default="gpt-4o-mini", description="LLM model for query enhancement")
     
-    def __init__(self, **kwargs):
-        """Initialize settings and resolve paths relative to project root."""
-        super().__init__(**kwargs)
-        
-        # Make all paths absolute relative to project root
-        project_root = find_project_root()
-        
-        if not self.raw_data_path.is_absolute():
-            object.__setattr__(self, 'raw_data_path', project_root / self.raw_data_path)
-        if not self.processed_data_dir.is_absolute():
-            object.__setattr__(self, 'processed_data_dir', project_root / self.processed_data_dir)
-        if not self.embeddings_dir.is_absolute():
-            object.__setattr__(self, 'embeddings_dir', project_root / self.embeddings_dir)
+    # === OpenAI Configuration ===
+    openai_api_key: str = Field(..., description="OpenAI API key")
+    openai_max_retries: int = Field(default=3, description="Maximum retries for OpenAI API calls")
+    openai_timeout: float = Field(default=30.0, description="Timeout for OpenAI API calls")
     
-    @field_validator("openai_api_key")
-    @classmethod
-    def validate_openai_key(cls, v):
-        """Validate OpenAI API key is provided."""
-        if not v or v == "your_openai_api_key_here":
-            raise ValueError("Please set a valid OPENAI_API_KEY in your .env file")
-        return v
+    # === Data Paths ===
+    raw_data_path: str = Field(default="data/raw", description="Path to raw data")
+    processed_data_path: str = Field(default="data/processed", description="Path to processed data")
+    embeddings_path: str = Field(default="data/embeddings", description="Path to embeddings")
+    sample_data_path: str = Field(default="data/sample", description="Path to sample data for quick testing")
+    
+    # === Search Configuration ===
+    default_top_k: int = Field(default=10, description="Default number of search results")
+    max_top_k: int = Field(default=50, description="Maximum number of search results")
+    default_min_similarity: float = Field(default=0.0, description="Default minimum similarity threshold")
+    
+    # === Performance Configuration ===
+    faiss_index_type: Literal["flat", "ivf"] = Field(default="ivf", description="FAISS index type")
+    faiss_nlist: Optional[int] = Field(default=None, description="Number of clusters for IVF index (auto if None)")
+    faiss_nprobe: Optional[int] = Field(default=None, description="Number of clusters to search (auto if None)")
+    
+    # === Logging Configuration ===
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = Field(default="INFO", description="Logging level")
+    log_format: str = Field(default="%(asctime)s - %(name)s - %(levelname)s - %(message)s", description="Log format")
+    
+    # === Quality Control ===
+    min_title_length: int = Field(default=10, description="Minimum title length for quality filtering")
+    max_description_length: int = Field(default=5000, description="Maximum description length")
+    require_price: bool = Field(default=False, description="Require price for inclusion")
+    require_rating: bool = Field(default=False, description="Require rating for inclusion")
+    
+    # === Development Configuration ===
+    debug: bool = Field(default=False, description="Enable debug mode")
+    reload: bool = Field(default=False, description="Enable auto-reload for development")
+    
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        case_sensitive = False
+        extra = "ignore"

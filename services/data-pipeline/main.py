@@ -1,171 +1,269 @@
 #!/usr/bin/env python3
-"""Data Pipeline Service - Main Entry Point."""
+"""
+Enhanced Data Pipeline CLI for Amazon Fashion Search Engine.
 
-print("🚀 Starting Data Pipeline...")
-print("📦 Loading dependencies (this may take a moment)...")
+This script provides a user-friendly interface for data processing with options for:
+- Using preloaded data (default)
+- Rebuilding with custom sample sizes
+- Full dataset processing
+- Data validation and overwrite protection
+"""
 
-import asyncio
 import argparse
+import logging
 import sys
+import time
 from pathlib import Path
+from typing import Optional
 
-print("✅ Basic imports loaded")
-
-# Add shared modules to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-print("📚 Loading shared modules...")
+# Add project root to path
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
 
 from shared.models import Settings
-from shared.utils.logging import setup_logger
-
-print("🔧 Loading pipeline components...")
-
-from src.pipeline import DataPipeline
-
-print("✅ All dependencies loaded!")
+from shared.utils import setup_logger
+from .src.pipeline import DataPipeline
 
 
-async def main():
-    """Main entry point for data pipeline service."""
+def setup_cli_logging(level: str = "INFO") -> logging.Logger:
+    """Setup CLI-friendly logging with progress indicators."""
     
-    parser = argparse.ArgumentParser(description="Amazon Fashion Data Pipeline")
-    parser.add_argument(
-        "--force-rebuild", 
-        action="store_true",
-        help="Force rebuild even if processed data exists"
+    logger = setup_logger("data-pipeline-cli", level)
+    
+    # Add console handler with clean format for CLI
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(getattr(logging, level))
+    
+    # Simple format for CLI
+    formatter = logging.Formatter('%(levelname)s: %(message)s')
+    console_handler.setFormatter(formatter)
+    
+    # Clear existing handlers and add our console handler
+    logger.handlers.clear()
+    logger.addHandler(console_handler)
+    
+    return logger
+
+
+def check_existing_data(settings: Settings) -> dict:
+    """Check what data already exists."""
+    
+    processed_path = Path(settings.processed_data_path) / "processed_products.parquet"
+    embeddings_path = Path(settings.embeddings_path) / "embeddings.npy"
+    index_path = Path(settings.embeddings_path) / "faiss_index.index"
+    
+    return {
+        'processed_data': processed_path.exists(),
+        'embeddings': embeddings_path.exists(),
+        'faiss_index': index_path.exists(),
+        'processed_path': processed_path,
+        'embeddings_path': embeddings_path,
+        'index_path': index_path
+    }
+
+
+def get_user_confirmation(message: str) -> bool:
+    """Get user confirmation for potentially destructive operations."""
+    
+    while True:
+        response = input(f"{message} (y/N): ").strip().lower()
+        if response in ['y', 'yes']:
+            return True
+        elif response in ['n', 'no', '']:
+            return False
+        else:
+            print("Please enter 'y' for yes or 'n' for no.")
+
+
+def estimate_processing_time(sample_size: int, full_dataset: bool = False) -> str:
+    """Estimate processing time based on sample size."""
+    
+    if full_dataset:
+        return "2-4 hours (full dataset ~800k products)"
+    elif sample_size <= 1000:
+        return "2-5 minutes"
+    elif sample_size <= 10000:
+        return "10-20 minutes" 
+    elif sample_size <= 50000:
+        return "30-60 minutes"
+    else:
+        return "1-2 hours"
+
+
+def main():
+    """Main CLI interface for the data pipeline."""
+    
+    parser = argparse.ArgumentParser(
+        description="Amazon Fashion Search Engine - Data Pipeline",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s                                    # Use preloaded data (fastest)
+  %(prog)s --rebuild                          # Rebuild with 50k sample
+  %(prog)s --rebuild --sample-size 1000       # Quick test with 1k products
+  %(prog)s --rebuild --full                   # Process complete dataset
+  %(prog)s --rebuild --force                  # Overwrite without confirmation
+
+Quick Start (recommended for reviewers):
+  1. Just run: %(prog)s
+  2. This uses preloaded data and should work immediately
+        """
     )
+    
+    # Primary options
     parser.add_argument(
-        "--test", 
+        "--rebuild", 
         action="store_true",
-        help="Use small test dataset (500 products) for quick testing"
+        help="Rebuild data instead of using preloaded data"
     )
+    
     parser.add_argument(
-        "--data-source", 
-        type=str,
-        help="Specific data source file to use (overrides auto-detection)"
+        "--sample-size", 
+        type=int, 
+        metavar="N",
+        help="Custom sample size (default: 50000)"
     )
+    
     parser.add_argument(
-        "--status", 
+        "--full", 
         action="store_true",
-        help="Show pipeline status and exit"
+        help="Process complete dataset (~800k products)"
+    )
+    
+    # Processing options
+    parser.add_argument(
+        "--force", 
+        action="store_true",
+        help="Force overwrite existing data without confirmation"
+    )
+    
+    parser.add_argument(
+        "--sequential", 
+        action="store_true",
+        help="Use sequential processing (slower, no rate limits)"
+    )
+    
+    # Development options
+    parser.add_argument(
+        "--log-level", 
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        default="INFO",
+        help="Logging level (default: INFO)"
+    )
+    
+    parser.add_argument(
+        "--validate-only", 
+        action="store_true",
+        help="Only validate existing data, don't process"
     )
     
     args = parser.parse_args()
-    print(f"⚙️  Arguments parsed: {args}")
+    
+    # Setup logging
+    logger = setup_cli_logging(args.log_level)
     
     try:
-        print("🔑 Loading settings...")
         # Load settings
+        logger.info("🔧 Loading configuration...")
         settings = Settings()
-        print("✅ Settings loaded successfully")
         
-        print("🏗️  Initializing pipeline...")
-        # Initialize pipeline
+        # Override settings based on CLI args
+        if args.sample_size:
+            settings.stratified_sample_size = args.sample_size
+        if args.sequential:
+            settings.sequential_processing = True
+        
+        # Check existing data
+        existing_data = check_existing_data(settings)
+        
+        # Display current status
+        logger.info("📊 Current Data Status:")
+        logger.info(f"   Processed Data: {'✅ Found' if existing_data['processed_data'] else '❌ Missing'}")
+        logger.info(f"   Embeddings:     {'✅ Found' if existing_data['embeddings'] else '❌ Missing'}")
+        logger.info(f"   FAISS Index:    {'✅ Found' if existing_data['faiss_index'] else '❌ Missing'}")
+        
+        # Validation-only mode
+        if args.validate_only:
+            if all(existing_data[key] for key in ['processed_data', 'embeddings', 'faiss_index']):
+                logger.info("✅ All data is present and ready for use!")
+                return 0
+            else:
+                logger.error("❌ Some data is missing. Run with --rebuild to generate it.")
+                return 1
+        
+        # Default behavior: use preloaded data
+        if not args.rebuild:
+            if all(existing_data[key] for key in ['processed_data', 'embeddings', 'faiss_index']):
+                logger.info("✅ Using preloaded data (recommended for quick testing)")
+                logger.info("💡 Data is ready! You can now start the search API:")
+                logger.info("   python services/search-api/main.py")
+                return 0
+            else:
+                logger.warning("⚠️  Preloaded data not found. Use --rebuild to generate it.")
+                logger.info("💡 Quick start: python services/data-pipeline/main.py --rebuild")
+                return 1
+        
+        # Rebuild mode
+        if args.full:
+            sample_size = None  # Process full dataset
+            logger.info("🔄 Rebuilding with FULL dataset (~800k products)")
+        else:
+            sample_size = settings.stratified_sample_size
+            logger.info(f"🔄 Rebuilding with {sample_size:,} product sample")
+        
+        # Estimate processing time
+        estimated_time = estimate_processing_time(sample_size or 800000, args.full)
+        logger.info(f"⏱️  Estimated processing time: {estimated_time}")
+        
+        # Check for overwrites
+        if any(existing_data[key] for key in ['processed_data', 'embeddings', 'faiss_index']):
+            if not args.force:
+                logger.warning("⚠️  Existing data will be overwritten:")
+                if existing_data['processed_data']:
+                    logger.warning(f"   - {existing_data['processed_path']}")
+                if existing_data['embeddings']:
+                    logger.warning(f"   - {existing_data['embeddings_path']}")
+                if existing_data['faiss_index']:
+                    logger.warning(f"   - {existing_data['index_path']}")
+                
+                if not get_user_confirmation("Continue with rebuild?"):
+                    logger.info("❌ Rebuild cancelled by user")
+                    return 0
+        
+        # Initialize and run pipeline
+        logger.info("🚀 Starting data pipeline...")
+        start_time = time.time()
+        
         pipeline = DataPipeline(settings)
-        print("✅ Pipeline initialized")
         
-        # Show status if requested
-        if args.status:
-            print("📊 Getting pipeline status...")
-            status = pipeline.get_status()
-            print("\n🔍 Data Pipeline Status:")
-            print("=" * 50)
-            for key, value in status.items():
-                print(f"{key}: {value}")
-            return
-        
-        print("🔍 Detecting data source...")
-        # Determine data source
-        if args.data_source:
-            data_source = Path(args.data_source)
-            if not data_source.exists():
-                print(f"❌ Specified data source not found: {data_source}")
-                sys.exit(1)
-            source_description = f"specified file ({data_source.name})"
+        # Run the pipeline
+        if args.full:
+            result = pipeline.run_full_pipeline()
         else:
-            try:
-                from src.data_processor import DataProcessor
-                processor = DataProcessor(settings)
-                data_source, source_description = processor.detect_data_source()
-                print(f"✅ Auto-detected: {source_description}")
-            except FileNotFoundError as e:
-                print(f"❌ {e}")
-                print("\n💡 Quick start options:")
-                print("   1. Generate test sample: python scripts/generate_stratified_sample.py --test")
-                print("   2. Generate stratified sample: python scripts/generate_stratified_sample.py")
-                print("   3. Use existing raw data with --data-source flag")
-                sys.exit(1)
+            result = pipeline.run_full_pipeline(sample_size=sample_size)
         
-        # Apply test mode if requested (override auto-detection)
-        test_sample_size = 500 if args.test else None
+        elapsed_time = time.time() - start_time
         
-        # Print startup information
-        print("\n🚀 Amazon Fashion Data Pipeline")
-        print("=" * 50)
-        print(f"📊 Data source: {data_source}")
-        print(f"📋 Source type: {source_description}")
-        if test_sample_size:
-            print(f"🧪 Test mode: Processing first {test_sample_size} products only")
-        print(f"🔄 Force rebuild: {args.force_rebuild}")
-        print("=" * 50)
-        
-        print("▶️  Starting pipeline execution...")
-        
-        # Run pipeline
-        results = await pipeline.run(
-            force_rebuild=args.force_rebuild,
-            data_source=data_source,
-            test_sample_size=test_sample_size
-        )
-        
-        # Print results
-        print("\n✅ Pipeline Completed Successfully!")
-        print("=" * 50)
-        print(f"📊 Total products: {results['total_products']:,}")
-        print(f"🔗 Total embeddings: {results['total_embeddings']:,}")
-        print(f"💰 Estimated cost: ${results['estimated_cost']:.4f}")
-        print(f"⏱️  Execution time: {results['execution_time']:.2f} seconds")
-        print(f"📁 Data source: {results['source']}")
-        print("=" * 50)
-        
-        if 'statistics' in results:
-            stats = results['statistics']
-            print("\n📈 Dataset Statistics:")
-            print("-" * 30)
-            
-            # Core metrics
-            print(f"Products with price: {stats.get('products_with_price', 0):,}")
-            print(f"Products with rating: {stats.get('products_with_rating', 0):,}")
-            print(f"Products with images: {stats.get('products_with_images', 0):,}")
-            print(f"Unique categories: {stats.get('unique_categories', 0):,}")
-            print(f"Avg tokens per product: {stats.get('avg_tokens_per_product', 0):.1f}")
-            
-            # Filter coverage
-            filter_stats = {k: v for k, v in stats.items() if k.endswith('_coverage')}
-            if filter_stats:
-                print("\nFilter Coverage:")
-                for filter_name, coverage in filter_stats.items():
-                    clean_name = filter_name.replace('_coverage', '').replace('_', ' ').title()
-                    print(f"  {clean_name}: {coverage}")
-        
-        if test_sample_size:
-            print("\n🧪 Test run completed successfully!")
-            print("💡 Remove --test flag to process the full stratified sample")
+        if result:
+            logger.info(f"✅ Pipeline completed successfully in {elapsed_time:.1f}s")
+            logger.info("🎉 Data is ready! You can now start the search API:")
+            logger.info("   python services/search-api/main.py")
+            return 0
         else:
-            print("\n🎉 Ready to start Search API service!")
-            print("💡 Run: python services/search-api/main.py")
-        
+            logger.error("❌ Pipeline failed")
+            return 1
+            
     except KeyboardInterrupt:
-        print("\n🛑 Pipeline interrupted by user")
-        sys.exit(0)
+        logger.warning("⚠️  Pipeline interrupted by user")
+        return 130
     except Exception as e:
-        print(f"\n❌ Pipeline failed: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+        logger.error(f"❌ Pipeline failed: {e}")
+        if args.log_level == "DEBUG":
+            logger.exception("Full traceback:")
+        else:
+            logger.info("💡 Use --log-level DEBUG for full error details")
+        return 1
 
 
 if __name__ == "__main__":
-    print("🏃 Starting main function...")
-    asyncio.run(main())
+    sys.exit(main())
