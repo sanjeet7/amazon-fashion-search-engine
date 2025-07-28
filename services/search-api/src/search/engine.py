@@ -43,7 +43,7 @@ class SearchEngine:
         self.vector_search = VectorSearchManager(settings)
         self.llm_processor = LLMProcessor(settings)
         self.filter_manager = FilterManager()
-        self.ranking_manager = RankingManager()
+        self.ranking_manager = RankingManager(self.llm_processor)
         
         # Data storage
         self.products_df: Optional[pd.DataFrame] = None
@@ -107,18 +107,10 @@ class SearchEngine:
             )
             
             # Step 6: Apply ranking
-            if request.reranking_method == "llm" and len(filtered_products) <= 20:
-                # Use LLM reranking for small result sets
-                final_products = await self.llm_processor.rerank_with_llm(
-                    filtered_products, request.query, max_products=10
-                )
-                ranking_method = "llm"
-            else:
-                # Use heuristic ranking
-                final_products = self.ranking_manager.rank_products(
-                    filtered_products, request.query, method="heuristic"
-                )
-                ranking_method = "heuristic"
+            final_products = await self.ranking_manager.rank_products(
+                filtered_products, request.query, method=request.reranking_method
+            )
+            ranking_method = request.reranking_method
             
             # Step 7: Limit to requested number
             final_products = final_products[:request.top_k]

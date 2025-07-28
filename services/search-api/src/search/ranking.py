@@ -9,24 +9,31 @@ Handles product ranking and scoring including:
 
 import logging
 import math
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from shared.models import ProductResult
+
+if TYPE_CHECKING:
+    from .llm_integration import LLMProcessor
 
 logger = logging.getLogger(__name__)
 
 
 class RankingManager:
-    """Manages product ranking and scoring operations."""
+    """Manages product ranking and scoring operations.
     
-    def __init__(self):
+    Supports both heuristic ranking (fast) and LLM ranking (high quality).
+    """
+    
+    def __init__(self, llm_processor: Optional['LLMProcessor'] = None):
         self.logger = logging.getLogger(__name__)
+        self.llm_processor = llm_processor
         
         # Performance tracking
         self.ranking_operations = 0
         self.heuristic_rankings = 0
         self.llm_rankings = 0
     
-    def rank_products(
+    async def rank_products(
         self, 
         products: List[ProductResult], 
         query: str, 
@@ -52,10 +59,12 @@ class RankingManager:
         if method == "heuristic":
             return self._heuristic_ranking(products, query)
         elif method == "llm":
-            # Note: LLM ranking is handled by LLMProcessor.rerank_with_llm()
-            # This is a fallback to heuristic if LLM ranking is not available
-            self.logger.debug("LLM ranking requested but not available, using heuristic")
-            return self._heuristic_ranking(products, query)
+            if self.llm_processor is not None:
+                self.llm_rankings += 1
+                return await self.llm_processor.rerank_with_llm(products, query)
+            else:
+                self.logger.warning("LLM ranking requested but LLMProcessor not available, using heuristic")
+                return self._heuristic_ranking(products, query)
         else:
             self.logger.warning(f"Unknown ranking method: {method}, using heuristic")
             return self._heuristic_ranking(products, query)

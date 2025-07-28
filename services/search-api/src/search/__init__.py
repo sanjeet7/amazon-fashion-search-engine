@@ -4,8 +4,8 @@ Search Engine Module
 Modular search engine components for the Fashion Search API.
 This module provides clean separation of concerns for:
 - Vector search operations
-- Filter processing
-- Ranking algorithms
+- Filter processing  
+- Ranking algorithms (heuristic and LLM-based)
 - LLM integration
 """
 
