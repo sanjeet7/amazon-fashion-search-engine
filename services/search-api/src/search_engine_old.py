@@ -145,7 +145,7 @@ class SearchEngine:
     async def _process_query(self, query: str) -> Tuple[str, Dict[str, Any]]:
         """Process query with LLM enhancement and filter extraction."""
         
-        # Extract filters using GPT-4.1-mini with standardized values
+        # Extract filters using LLM with standardized values
         extracted_filters = await extract_search_filters_with_llm(query, self.client)
         
         # Enhance query with fashion context
