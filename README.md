@@ -26,15 +26,39 @@ docker-compose up
 
 ### **Option 2: Manual Setup**
 ```bash
-# 1. Quick setup script
+# Method A: Using setup.py (Recommended)
+pip install -e .                    # Install with dependencies
+cp .env.template .env                # Copy environment template
+# Edit .env and add your OPENAI_API_KEY
+
+# Method B: Using setup script  
 chmod +x scripts/setup.sh
 ./scripts/setup.sh
 
-# 2. Start services
+# Start services
 python services/search-api/main.py &
 cd frontend && npm run dev
 
-# 3. Visit http://localhost:3000
+# Visit http://localhost:3000
+```
+
+### **Option 3: Development Setup**
+```bash
+# Install with development dependencies
+pip install -e ".[dev]"             # Includes testing and linting tools
+cp .env.template .env
+# Edit .env and add your OPENAI_API_KEY
+
+# Install frontend dependencies
+cd frontend && npm install
+
+# Verify installation
+fashion-search-pipeline --validate-only    # Test CLI commands
+python -c "from services.search_api.src.search import SearchEngine; print('✅ Modules imported successfully')"
+
+# Start development servers  
+python services/search-api/main.py --reload &
+cd frontend && npm run dev
 ```
 
 ---
@@ -142,6 +166,37 @@ curl http://localhost:8000/health
 
 ### **API Documentation**
 Visit `http://localhost:8000/docs` for interactive API documentation.
+
+---
+
+## 🔧 **CLI Commands**
+
+After installing with `pip install -e .`, you get convenient CLI commands:
+
+### **Data Pipeline Commands**
+```bash
+# Using CLI command (after pip install)
+fashion-search-pipeline --rebuild                    # Rebuild with 50k sample
+fashion-search-pipeline --rebuild --sample-size 1000 # Custom sample size
+fashion-search-pipeline --rebuild --full             # Process full dataset
+fashion-search-pipeline --validate-only              # Just validate data
+
+# Using Python module directly
+python services/data-pipeline/main.py --rebuild
+python -m services.data_pipeline.main --rebuild
+```
+
+### **Search API Commands**
+```bash
+# Using CLI command (after pip install)
+fashion-search-api                                   # Start API server
+fashion-search-api --reload                          # Development mode
+fashion-search-api --host 0.0.0.0 --port 8080       # Custom host/port
+
+# Using Python module directly  
+python services/search-api/main.py
+python -m services.search_api.main --reload
+```
 
 ---
 
@@ -254,17 +309,69 @@ docker-compose logs -f
 
 ### **Local Development Setup**
 ```bash
-# Install dependencies
+# 1. Install dependencies
 uv install                    # Python dependencies
 cd frontend && npm install    # Frontend dependencies
 
-# Start development servers
+# 2. Set up environment
+cp .env.template .env
+# Edit .env and add your OPENAI_API_KEY
+
+# 3. Start development servers
 python services/search-api/main.py --reload &
 cd frontend && npm run dev
 
-# Access development servers
+# 4. Access development servers
 # Frontend: http://localhost:3000
 # API: http://localhost:8000
+```
+
+### **Working with Modular Components**
+
+The search engine uses a modular architecture where each component has a focused responsibility:
+
+```python
+# SearchEngine orchestrates all components
+from services.search_api.src.search import SearchEngine
+
+search_engine = SearchEngine(settings)
+
+# Individual components can be used independently
+from services.search_api.src.search import VectorSearchManager, LLMProcessor
+
+vector_search = VectorSearchManager(settings)
+llm_processor = LLMProcessor(settings)
+
+# Test components separately
+similarities, indices = vector_search.search(query_embedding, k=10)
+enhanced_query, filters = await llm_processor.process_search_query("blue dress")
+```
+
+### **Component Development**
+
+Each component can be developed and tested independently:
+
+```bash
+# Test individual components
+python -c "
+from services.search_api.src.search.vector_search import VectorSearchManager
+from shared.models import Settings
+import numpy as np
+
+settings = Settings()
+vs = VectorSearchManager(settings)
+print('VectorSearchManager imported successfully')
+"
+
+# Test data pipeline components  
+python -c "
+from services.data_pipeline.src.processors.data_loader import DataLoader
+from shared.models import Settings
+
+settings = Settings()
+loader = DataLoader(settings)
+print('DataLoader imported successfully')
+"
 ```
 
 ### **Code Structure**
@@ -350,7 +457,25 @@ cp .env.template .env
 **Data Files Missing**
 ```bash
 # Error: Processed data not found
+fashion-search-pipeline --rebuild
+# OR
 python services/data-pipeline/main.py --rebuild
+```
+
+**Module Import Errors**
+```bash
+# Error: ModuleNotFoundError: No module named 'services'
+pip install -e .                     # Install in development mode
+# OR
+pip install -e ".[dev]"              # Install with dev dependencies
+```
+
+**CLI Commands Not Found**
+```bash
+# Error: fashion-search-api: command not found
+pip install -e .                     # Reinstall to get CLI commands
+# OR use Python module directly
+python services/search-api/main.py
 ```
 
 **Port Already in Use**
