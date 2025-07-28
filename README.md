@@ -273,10 +273,24 @@ amazon-fashion-search-engine/
 ├── services/
 │   ├── data-pipeline/          # Data processing service
 │   │   ├── main.py            # Enhanced CLI interface
-│   │   └── src/               # Processing logic
+│   │   └── src/
+│   │       ├── pipeline.py    # Main pipeline orchestrator
+│   │       ├── data_processor.py     # Data processing logic
+│   │       ├── embedding_generator.py # Embedding generation
+│   │       └── processors/    # Modular processing components
+│   │           ├── data_loader.py    # Data loading and source detection
+│   │           └── __init__.py
 │   └── search-api/            # Search API service
 │       ├── main.py            # Enhanced CLI interface
-│       └── src/               # API implementation
+│       └── src/
+│           ├── api.py         # FastAPI application
+│           └── search/        # Modular search components
+│               ├── engine.py          # Main search orchestrator
+│               ├── vector_search.py   # FAISS operations
+│               ├── llm_integration.py # OpenAI API integration
+│               ├── filtering.py       # Product filtering logic
+│               ├── ranking.py         # Ranking algorithms
+│               └── __init__.py
 ├── frontend/                  # Next.js application
 │   ├── app/                   # App router pages
 │   ├── components/            # React components
@@ -306,9 +320,17 @@ amazon-fashion-search-engine/
 - **Preloaded Data**: 50k products ready for immediate testing
 - **Scalable Processing**: Batch processing with rate limit handling
 
+### **Modular Architecture**
+- **Component-Based Design**: Each module has a single responsibility
+- **SearchEngine**: Orchestrates VectorSearchManager, LLMProcessor, FilterManager, RankingManager
+- **DataPipeline**: Orchestrates DataLoader, DataProcessor, EmbeddingGenerator
+- **Independent Testing**: Each component can be tested and optimized separately
+- **Graceful Degradation**: Component failures don't break the entire system
+
 ### **Search Quality**
 - **Multi-stage Pipeline**: Vector search → Filtering → Ranking
 - **LLM Integration**: Query enhancement and filter extraction
+- **Dual Ranking**: Heuristic (fast) and LLM-based (high quality) ranking options
 - **Graceful Degradation**: Maintains results when filters are too restrictive
 - **Business Logic**: Incorporates ratings, popularity, and completeness
 
