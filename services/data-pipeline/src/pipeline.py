@@ -1,7 +1,7 @@
 """
 Data Pipeline
 
-Data pipeline with improved architecture:
+Data pipeline for:
 - DataLoader for source detection and loading
 - Processing components  
 - Separation of concerns
