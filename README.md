@@ -53,6 +53,7 @@ cp .env.template .env
 cd frontend && npm install
 
 # Verify installation
+python scripts/validate_setup.py           # Comprehensive validation
 fashion-search-pipeline --validate-only    # Test CLI commands
 python -c "from services.search_api.src.search import SearchEngine; print('✅ Modules imported successfully')"
 
