@@ -17,7 +17,7 @@ from shared.models import (
 )
 from shared.utils import setup_logger
 
-from .search_engine import SearchEngine
+from .search import SearchEngine
 
 
 # Global application state
