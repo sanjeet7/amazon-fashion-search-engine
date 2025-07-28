@@ -1,13 +1,11 @@
 """
-Refactored Data Pipeline
+Modular Data Pipeline
 
-Clean, modular data pipeline that demonstrates improved architecture:
+Clean, modular data pipeline with improved architecture:
 - DataLoader for source detection and loading
-- Modular processing components
+- Modular processing components  
 - Clear separation of concerns
 - Better error handling and progress reporting
-
-This shows how the pipeline would be structured with proper modular design.
 """
 
 import time
@@ -26,11 +24,11 @@ from .processors.data_loader import DataLoader
 logger = logging.getLogger(__name__)
 
 
-class RefactoredDataPipeline:
+class ModularDataPipeline:
     """
-    Refactored data pipeline with modular architecture.
+    Modular data pipeline with clean architecture.
     
-    Demonstrates clean separation of concerns:
+    Provides clean separation of concerns:
     - Data loading and source detection
     - Data processing and cleaning
     - Embedding generation and optimization
