@@ -1,13 +1,11 @@
 """
-Refactored Search Engine
+Search Engine
 
-Clean, modular search engine that orchestrates specialized components:
+Search engine that orchestrates specialized components:
 - VectorSearchManager for FAISS operations
 - LLMProcessor for query enhancement and filter extraction
 - FilterManager for product filtering with graceful degradation
-- RankingManager for intelligent product ranking
-
-This replaces the monolithic SearchEngine with a clean, maintainable architecture.
+- RankingManager for product ranking
 """
 
 import logging
@@ -28,9 +26,9 @@ logger = logging.getLogger(__name__)
 
 class SearchEngine:
     """
-    Refactored search engine with modular architecture.
+    Search engine with component-based architecture.
     
-    This orchestrates specialized components for a clean separation of concerns:
+    Orchestrates specialized components:
     - Vector search operations
     - LLM integration
     - Product filtering
@@ -58,7 +56,7 @@ class SearchEngine:
     def initialize(self, embeddings: np.ndarray, products_df: pd.DataFrame, product_ids: List[str]) -> None:
         """Initialize the search engine with embeddings and product data."""
         
-        self.logger.info("Initializing modular search engine...")
+        self.logger.info("Initializing search engine...")
         
         # Store product data
         self.products_df = products_df
@@ -74,13 +72,13 @@ class SearchEngine:
     
     async def search(self, request: SearchRequest) -> Tuple[List[ProductResult], Dict[str, Any]]:
         """
-        Perform intelligent search with modular processing pipeline.
+        Perform intelligent search with processing pipeline.
         
         Pipeline:
         1. LLM query processing (enhancement + filter extraction)
         2. Vector similarity search
         3. Candidate product conversion
-        4. Intelligent filtering with graceful degradation
+        4. Filtering with graceful degradation
         5. Ranking (heuristic or LLM-based)
         6. Result limitation and metadata collection
         """
@@ -103,12 +101,12 @@ class SearchEngine:
             # Step 4: Convert to ProductResult objects
             candidate_products = self._convert_to_product_results(similarities, indices)
             
-            # Step 5: Apply intelligent filtering with graceful degradation
+            # Step 5: Apply filtering with graceful degradation
             filtered_products = self.filter_manager.apply_filters(
                 candidate_products, request, extracted_filters
             )
             
-            # Step 6: Apply intelligent ranking
+            # Step 6: Apply ranking
             if request.reranking_method == "llm" and len(filtered_products) <= 20:
                 # Use LLM reranking for small result sets
                 final_products = await self.llm_processor.rerank_with_llm(

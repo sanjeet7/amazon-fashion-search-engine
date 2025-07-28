@@ -1,175 +1,242 @@
-"""Data pipeline orchestration for Amazon Fashion search."""
+"""
+Data Pipeline
+
+Data pipeline with improved architecture:
+- DataLoader for source detection and loading
+- Processing components  
+- Separation of concerns
+- Error handling and progress reporting
+"""
 
 import time
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from shared.models import Settings
 from shared.utils import setup_logger
 
+# Import existing components (would be refactored versions)
 from .data_processor import DataProcessor
 from .embedding_generator import EmbeddingGenerator
+from .processors.data_loader import DataLoader
+
+logger = logging.getLogger(__name__)
 
 
 class DataPipeline:
-    """Orchestrates the complete data processing pipeline."""
+    """
+    Data pipeline with clean architecture.
+    
+    Provides separation of concerns:
+    - Data loading and source detection
+    - Data processing and cleaning
+    - Embedding generation and optimization
+    - Index building and management
+    """
     
     def __init__(self, settings: Settings):
         self.settings = settings
         self.logger = setup_logger("data-pipeline")
         
-        # Initialize components
-        self.data_processor = DataProcessor(settings)
-        self.embedding_generator = EmbeddingGenerator(settings)
+        # Initialize modular components
+        self.data_loader = DataLoader(settings)
+        self.data_processor = DataProcessor(settings)  # Would be refactored
+        self.embedding_generator = EmbeddingGenerator(settings)  # Would be refactored
+        
+        # Performance tracking
+        self.pipeline_runs = 0
+        self.total_processing_time = 0.0
     
-    async def run(self, force_rebuild: bool = False, data_source: Optional[Path] = None, test_sample_size: Optional[int] = None) -> Dict[str, Any]:
+    def run_full_pipeline(self, sample_size: Optional[int] = None) -> bool:
         """
-        Run the complete data pipeline.
+        Run the complete refactored data pipeline.
         
         Args:
-            force_rebuild: Force rebuild even if processed data exists
-            data_source: Optional data source path (auto-detected if None)
-            test_sample_size: Optional sample size for testing (e.g., 500)
+            sample_size: Optional sample size for processing
+            
+        Returns:
+            True if successful, False otherwise
         """
         
         start_time = time.time()
+        self.pipeline_runs += 1
         
         try:
-            self.logger.info("Starting data pipeline...")
+            self.logger.info("🚀 Starting data pipeline...")
             
-            # Check if we can skip processing
-            if not force_rebuild and self._can_skip_processing():
-                self.logger.info("Processed data exists and embeddings are current. Skipping processing.")
-                df, embedding_texts = self.data_processor.load_processed_data()
-                embeddings, product_ids, metadata = self.embedding_generator.load_embeddings()
-                
-                return {
-                    'total_products': len(df),
-                    'total_embeddings': len(embeddings),
-                    'estimated_cost': metadata.get('estimated_cost', 0),
-                    'execution_time': time.time() - start_time,
-                    'source': 'existing',
-                    'statistics': self.data_processor.get_statistics(df)
-                }
+            # Phase 1: Data Loading with smart source detection
+            self.logger.info("📥 Phase 1: Loading data...")
+            raw_products = self._load_data_phase(sample_size)
             
-            # Auto-detect data source if not provided
-            if data_source is None:
-                data_source, source_description = self.data_processor.detect_data_source()
-                self.logger.info(f"Auto-detected data source: {source_description}")
+            # Phase 2: Data Processing with validation
+            self.logger.info("🔧 Phase 2: Processing data...")
+            processed_df, embedding_texts = self._process_data_phase(raw_products)
             
-            # Step 1: Load raw data
-            self.logger.info("Step 1: Loading raw data...")
-            raw_products = self.data_processor.load_raw_data(data_source, test_sample_size)
+            # Phase 3: Embedding Generation with optimization
+            self.logger.info("🧠 Phase 3: Generating embeddings...")
+            embeddings, metadata = self._generate_embeddings_phase(embedding_texts)
             
-            # Step 2: Process products  
-            self.logger.info("Step 2: Processing products...")
-            df, embedding_texts = self.data_processor.process_products(raw_products)
+            # Phase 4: Index Building and Storage
+            self.logger.info("💾 Phase 4: Building search index...")
+            self._build_index_phase(processed_df, embeddings, metadata)
             
-            if len(df) == 0:
-                raise ValueError("No valid products found after processing")
+            # Phase 5: Validation and Statistics
+            self.logger.info("📊 Phase 5: Validating pipeline...")
+            self._validate_pipeline_phase(processed_df, embeddings)
             
-            # Step 3: Generate embeddings
-            self.logger.info("Step 3: Generating embeddings...")
-            embeddings, cost_info = await self.embedding_generator.generate_embeddings(embedding_texts)
+            processing_time = time.time() - start_time
+            self.total_processing_time += processing_time
             
-            # Step 4: Save everything
-            self.logger.info("Step 4: Saving processed data and embeddings...")
-            self.data_processor.save_processed_data(df, embedding_texts)
+            self.logger.info(f"✅ Pipeline completed successfully in {processing_time:.2f}s")
+            self.logger.info(f"   Processed: {len(processed_df):,} products")
+            self.logger.info(f"   Generated: {len(embeddings):,} embeddings")
+            self.logger.info(f"   Cost: ${metadata.get('estimated_cost', 0):.4f}")
             
-            product_ids = df['parent_asin'].tolist()
-            metadata = {
-                'total_tokens': cost_info['total_tokens'],
-                'estimated_cost': cost_info['total_cost'],
-                'model': self.settings.embedding_model,
-                'embedding_dim': embeddings.shape[1],
-                'total_embeddings': len(embeddings),
-                'data_source': str(data_source),
-                'test_mode': test_sample_size is not None,
-                'sample_size': test_sample_size if test_sample_size else len(df)
-            }
-            
-            self.embedding_generator.save_embeddings(embeddings, product_ids, metadata)
-            self.logger.info("✅ Saved embeddings and created FAISS index")
-            
-            # Step 5: Calculate statistics
-            self.logger.info("Step 5: Calculating statistics...")
-            statistics = self.data_processor.get_statistics(df)
-            
-            execution_time = time.time() - start_time
-            self.logger.info(f"Pipeline completed successfully in {execution_time:.2f} seconds")
-            
-            return {
-                'total_products': len(df),
-                'total_embeddings': len(embeddings),
-                'estimated_cost': cost_info['total_cost'],
-                'execution_time': execution_time,
-                'source': 'generated',
-                'statistics': statistics
-            }
+            return True
             
         except Exception as e:
-            self.logger.error(f"Pipeline failed: {e}")
-            raise
+            self.logger.error(f"❌ Pipeline failed: {e}")
+            return False
     
-    def get_status(self) -> Dict[str, Any]:
-        """Get current pipeline status."""
+    def _load_data_phase(self, sample_size: Optional[int]) -> List[Dict[str, Any]]:
+        """Phase 1: Load data with smart source detection."""
         
-        status = {
-            'processed_data_exists': self._processed_data_exists(),
-            'embeddings_exist': self._embeddings_exist(),
-            'pipeline_ready': self._can_skip_processing()
+        # Auto-detect best data source
+        data_source, description = self.data_loader.detect_data_source()
+        self.logger.info(f"   Source: {description}")
+        
+        # Load with progress reporting
+        raw_products = self.data_loader.load_raw_data(
+            data_source=data_source,
+            sample_size=sample_size
+        )
+        
+        self.logger.info(f"   Loaded: {len(raw_products):,} raw products")
+        return raw_products
+    
+    def _process_data_phase(self, raw_products: List[Dict[str, Any]]) -> tuple:
+        """Phase 2: Process data with validation and cleaning."""
+        
+        # Process products with enhanced validation
+        processed_df, embedding_texts = self.data_processor.process_products(raw_products)
+        
+        if len(processed_df) == 0:
+            raise ValueError("No valid products found after processing")
+        
+        # Calculate processing statistics
+        valid_rate = len(processed_df) / len(raw_products) * 100
+        self.logger.info(f"   Processed: {len(processed_df):,} products ({valid_rate:.1f}% valid)")
+        
+        return processed_df, embedding_texts
+    
+    def _generate_embeddings_phase(self, embedding_texts: List[str]) -> tuple:
+        """Phase 3: Generate embeddings with optimization."""
+        
+        # Generate embeddings with progress tracking
+        embeddings, cost_info = self.embedding_generator.generate_embeddings(embedding_texts)
+        
+        # Prepare comprehensive metadata
+        metadata = {
+            'total_tokens': cost_info['total_tokens'],
+            'estimated_cost': cost_info['total_cost'],
+            'model': self.settings.embedding_model,
+            'embedding_dim': embeddings.shape[1],
+            'total_embeddings': len(embeddings),
+            'batch_size': self.settings.embedding_batch_size,
+            'processing_method': 'concurrent' if not self.settings.sequential_processing else 'sequential'
         }
         
-        # Add data source information
+        self.logger.info(f"   Generated: {len(embeddings):,} embeddings")
+        self.logger.info(f"   Cost: ${cost_info['total_cost']:.4f}")
+        
+        return embeddings, metadata
+    
+    def _build_index_phase(self, processed_df, embeddings, metadata) -> None:
+        """Phase 4: Build search index and save data."""
+        
+        # Save processed data
+        self.data_processor.save_processed_data(processed_df, None)
+        
+        # Save embeddings and build index
+        product_ids = processed_df['parent_asin'].tolist()
+        self.embedding_generator.save_embeddings(embeddings, product_ids, metadata)
+        
+        self.logger.info("   Index: FAISS index built and saved")
+        self.logger.info("   Storage: All data saved successfully")
+    
+    def _validate_pipeline_phase(self, processed_df, embeddings) -> None:
+        """Phase 5: Validate pipeline output."""
+        
+        # Validate data consistency
+        if len(processed_df) != len(embeddings):
+            raise ValueError(f"Data mismatch: {len(processed_df)} products vs {len(embeddings)} embeddings")
+        
+        # Validate data quality
+        missing_titles = processed_df['title'].isna().sum()
+        missing_categories = processed_df['main_category'].isna().sum()
+        
+        self.logger.info(f"   Quality: {missing_titles} missing titles, {missing_categories} missing categories")
+        
+        # Validate embeddings
+        if embeddings.shape[1] != 1536:  # Expected dimension for text-embedding-3-small
+            self.logger.warning(f"   Warning: Unexpected embedding dimension: {embeddings.shape[1]}")
+        
+        self.logger.info("   Validation: All checks passed")
+    
+    def get_pipeline_stats(self) -> Dict[str, Any]:
+        """Get comprehensive pipeline statistics."""
+        
+        avg_processing_time = 0.0
+        if self.pipeline_runs > 0:
+            avg_processing_time = self.total_processing_time / self.pipeline_runs
+        
+        return {
+            'pipeline_runs': self.pipeline_runs,
+            'total_processing_time': self.total_processing_time,
+            'avg_processing_time': avg_processing_time,
+            'data_loader_stats': {
+                'component': 'DataLoader',
+                'description': 'Handles data source detection and loading'
+            },
+            'architecture': 'modular',
+            'components': ['DataLoader', 'DataProcessor', 'EmbeddingGenerator']
+        }
+    
+    def validate_setup(self) -> Dict[str, Any]:
+        """Validate pipeline setup and data availability."""
+        
+        validation_results = {
+            'setup_valid': True,
+            'issues': [],
+            'data_sources': [],
+            'recommendations': []
+        }
+        
         try:
-            data_source, source_description = self.data_processor.detect_data_source()
-            status['available_data_source'] = str(data_source)
-            status['data_source_type'] = source_description
-        except FileNotFoundError:
-            status['available_data_source'] = None
-            status['data_source_type'] = 'No data source found'
+            # Check data sources
+            data_source, description = self.data_loader.detect_data_source()
+            data_info = self.data_loader.get_data_info(data_source)
+            
+            validation_results['data_sources'].append({
+                'path': str(data_source),
+                'description': description,
+                'info': data_info
+            })
+            
+        except FileNotFoundError as e:
+            validation_results['setup_valid'] = False
+            validation_results['issues'].append(str(e))
+            validation_results['recommendations'].append(
+                "Run the data generation script to create sample data"
+            )
         
-        # Add processed data info if available
-        if status['processed_data_exists']:
-            try:
-                df, _ = self.data_processor.load_processed_data()
-                status['processed_products'] = len(df)
-                status['last_processing'] = 'available'
-            except Exception:
-                status['processed_products'] = 0
-                status['last_processing'] = 'error loading'
+        # Check OpenAI API key
+        if not self.settings.openai_api_key or self.settings.openai_api_key == "your_openai_api_key_here":
+            validation_results['setup_valid'] = False
+            validation_results['issues'].append("OpenAI API key not configured")
+            validation_results['recommendations'].append(
+                "Set OPENAI_API_KEY environment variable"
+            )
         
-        # Add embeddings info if available
-        if status['embeddings_exist']:
-            try:
-                _, _, metadata = self.embedding_generator.load_embeddings()
-                status['embedding_count'] = metadata.get('total_embeddings', 0)
-                status['embedding_cost'] = metadata.get('estimated_cost', 0)
-                status['embedding_model'] = metadata.get('model', 'unknown')
-            except Exception:
-                status['embedding_count'] = 0
-                status['embedding_cost'] = 0
-                status['embedding_model'] = 'error loading'
-        
-        return status
-    
-    def _can_skip_processing(self) -> bool:
-        """Check if processing can be skipped."""
-        return self._processed_data_exists() and self._embeddings_exist()
-    
-    def _processed_data_exists(self) -> bool:
-        """Check if processed data exists."""
-        parquet_file = self.settings.processed_data_dir / "processed_products.parquet"
-        texts_file = self.settings.processed_data_dir / "embedding_texts.json"
-        
-        return parquet_file.exists() and texts_file.exists()
-    
-    def _embeddings_exist(self) -> bool:
-        """Check if embeddings exist."""
-        embeddings_file = self.settings.embeddings_dir / "embeddings.npy"
-        metadata_file = self.settings.embeddings_dir / "metadata.json"
-        ids_file = self.settings.embeddings_dir / "product_ids.json"
-        faiss_index_file = self.settings.embeddings_dir / "faiss_index.index"
-        
-        return all(f.exists() for f in [embeddings_file, metadata_file, ids_file, faiss_index_file])
+        return validation_results
